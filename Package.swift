@@ -31,8 +31,8 @@ let package = Package(
         ),
         .binaryTarget(
             name: "SEONIdVerification",
-            url: "https://s3.us-east-1.amazonaws.com/idv-static.native-sdk.seondev.space/sdk-releases/1.6.1/SEONIdVerification_SPM.zip",
-            checksum: "e4405528e014869b60663a7165f7623edb0262006c0b29780cb8bdf90b37af8e"
+            url: "https://s3.us-east-1.amazonaws.com/idv-static.native-sdk.seondev.space/sdk-releases/ios/1.6.3/SEONIdVerification_SPM.zip",
+            checksum: "0feced8d6c35014db72f14635e617d61ee87150c89ad4043334ddd75f7531085"
         )
     ]
 )

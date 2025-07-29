@@ -4,21 +4,204 @@ on:
   repository_dispatch:
     types: [from_bitrise]
 
-permissions: {}  # nothing special needed for this demo
+permissions:
+  contents: write
+  pull-requests: write
 
 jobs:
-  test:
+  release:
     runs-on: macos-latest
     env:
-      # Pull data from the repository_dispatch payload
+      DEFAULT_BRANCH: master
+
+      VERSION: ${{ github.event.client_payload.version }}
+      RELEASE_NOTES: ${{ github.event.client_payload.release_notes }}
+      RELEASE_NOTES_B64: ${{ github.event.client_payload.release_notes_b64 }}
+      ARTIFACTS_JSON: ${{ toJson(github.event.client_payload.artifacts) }}
       CALLER: ${{ github.event.client_payload.caller }}
-      BUILD_URL: ${{ github.event.client_payload.build_url }}
-      EVENT_TYPE: ${{ github.event.action }}  # will be "from_bitrise"
+
     steps:
-      - name: Show who triggered me
+      - name: Checkout default branch
+        uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+
+      - name: Tool sanity
         shell: bash
         run: |
           set -euo pipefail
-          echo "Event type: \"$EVENT_TYPE\""
-          echo "Triggered by \"${CALLER:-unknown}\""
-          echo "Bitrise build: \"${BUILD_URL:-n/a}\""
+          swift --version
+          gh --version || true
+
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+
+      - name: Ensure jq is available (macOS)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v jq >/dev/null 2>&1; then
+            brew update && brew install jq
+          fi
+          jq --version
+
+      - name: Decode release notes to file (bash + openssl)
+        shell: bash
+        run: |
+          set -euo pipefail
+          # If RELEASE_NOTES_B64 is empty, create an empty file
+          if [[ -n "${RELEASE_NOTES_B64:-}" ]]; then
+            printf '%s' "$RELEASE_NOTES_B64" | /usr/bin/openssl base64 -d -A > release_notes.txt
+          else
+            : > release_notes.txt
+          fi
+
+      - name: Extract artifact URLs with jq (writes for next steps)
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Produce two lines: STD_URL=... and MODERN_URL=...
+          printf '%s' "$ARTIFACTS_JSON" \
+          | jq -r '
+              (map(select((.name|ascii_downcase)|endswith("idv_spm.zip")))[0].url // "")  as $std
+            | (map(select((.name|ascii_downcase)|endswith("idv_spm_modern.zip") or (.name|ascii_downcase)|endswith("idv_spm_modernapi.zip")))[0].url // "") as $modern
+            | "STD_URL=\($std)\nMODERN_URL=\($modern)"
+            ' >> "$GITHUB_ENV"
+
+      - name: Download artifacts (bash only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${STD_URL:?STD_URL missing (expect an artifact named IDV_SPM.zip)}"
+          : "${MODERN_URL:?MODERN_URL missing (expect an artifact named IDV_SPM_Modern.zip)}"
+          mkdir -p dist
+          curl -fL "$STD_URL"    -o dist/IDV_SPM.zip
+          curl -fL "$MODERN_URL" -o dist/IDV_SPM_Modern.zip
+          ls -lh dist
+
+      - name: Compute checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          CS_STD=$(swift package compute-checksum "dist/IDV_SPM.zip")
+          CS_MOD=$(swift package compute-checksum "dist/IDV_SPM_Modern.zip")
+          echo "CS_STD=$CS_STD" >> "$GITHUB_ENV"
+          echo "CS_MOD=$CS_MOD" >> "$GITHUB_ENV"
+          echo "STD checksum: $CS_STD"
+          echo "Modern checksum: $CS_MOD"
+
+      - name: Prepare git identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      # ---------------- 1) Standard release: PR, tag, release ----------------
+      - name: Create documentation/{VERSION} branch, update files, open PR, tag & release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git checkout -B "documentation/${VERSION}" "origin/${DEFAULT_BRANCH}"
+
+          # Update Package.swift (URL -> v{VERSION}/IDV_SPM.zip, checksum -> CS_STD)
+          python3 - "$VERSION" "$CS_STD" <<'PY'
+          import sys, re, pathlib
+          version, checksum = sys.argv[1], sys.argv[2]
+          p = pathlib.Path("Package.swift")
+          s = p.read_text()
+          s = re.sub(r'url:\s*"(https://github\.com/seontechnologies/seon-idv-sdk-ios-public/releases/download/)[^"]+"',
+                     rf'url: "\1v{version}/IDV_SPM.zip"', s)
+          s = re.sub(r'checksum:\s*"[0-9a-fA-F]+"',
+                     f'checksum: "{checksum}"', s)
+          p.write_text(s)
+          PY
+
+          # Insert release notes at top of # Changelog
+          python3 - "$VERSION" <<'PY'
+          import sys, pathlib, re
+          version = sys.argv[1]
+          notes = pathlib.Path("release_notes.txt").read_text()
+          readme = pathlib.Path("README.md")
+          t = readme.read_text()
+          m = re.search(r'(^#\s*Changelog\s*\n)', t, re.M)
+          if not m:
+            raise SystemExit("README.md must contain a '# Changelog' heading")
+          insert_at = m.end()
+          new_entry = f"\n## {version}\n{notes}\n\n"
+          t = t[:insert_at] + new_entry + t[insert_at:]
+          readme.write_text(t)
+          PY
+
+          git add Package.swift README.md
+          git commit -m "Release: v${VERSION}"
+          git push --set-upstream origin "documentation/${VERSION}"
+
+          # Open PR onto master
+          gh pr create \
+            --title "Release: v${VERSION}" \
+            --body-file release_notes.txt \
+            --base "${DEFAULT_BRANCH}" \
+            --head "documentation/${VERSION}" \
+            --draft=false
+
+          # Tag + create release (upload both artifacts)
+          git tag "v${VERSION}"
+          git push origin "v${VERSION}"
+
+          gh release create "v${VERSION}" \
+            dist/IDV_SPM.zip dist/IDV_SPM_Modern.zip \
+            --title "v${VERSION}" \
+            --notes-file release_notes.txt
+
+      # ---------------- 2) Modern API branch & tag ----------------
+      - name: Create release/{VERSION}_modern_api branch, update files, tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git checkout -B "release/${VERSION}_modern_api" "origin/${DEFAULT_BRANCH}"
+
+          # Update Package.swift (URL -> v{VERSION}/IDV_SPM_Modern.zip, checksum -> CS_MOD)
+          python3 - "$VERSION" "$CS_MOD" <<'PY'
+          import sys, re, pathlib
+          version, checksum = sys.argv[1], sys.argv[2]
+          p = pathlib.Path("Package.swift")
+          s = p.read_text()
+          s = re.sub(r'url:\s*"(https://github\.com/seontechnologies/seon-idv-sdk-ios-public/releases/download/)[^"]+"',
+                     rf'url: "\1v{version}/IDV_SPM_Modern.zip"', s)
+          s = re.sub(r'checksum:\s*"[0-9a-fA-F]+"',
+                     f'checksum: "{checksum}"', s)
+          p.write_text(s)
+          PY
+
+          # Re-insert same release notes (separate branch)
+          python3 - "$VERSION" <<'PY'
+          import sys, pathlib, re
+          version = sys.argv[1]
+          notes = pathlib.Path("release_notes.txt").read_text()
+          readme = pathlib.Path("README.md")
+          t = readme.read_text()
+          m = re.search(r'(^#\s*Changelog\s*\n)', t, re.M)
+          if not m:
+            raise SystemExit("README.md must contain a '# Changelog' heading")
+          insert_at = m.end()
+          new_entry = f"\n## {version}\n{notes}\n\n"
+          t = t[:insert_at] + new_entry + t[insert_at:]
+          readme.write_text(t)
+          PY
+
+          git add Package.swift README.md
+          git commit -m "Release: v${VERSION}-ModernAPI"
+          git push --set-upstream origin "release/${VERSION}_modern_api"
+
+          git tag "v${VERSION}-ModernAPI"
+          git push origin "v${VERSION}-ModernAPI"

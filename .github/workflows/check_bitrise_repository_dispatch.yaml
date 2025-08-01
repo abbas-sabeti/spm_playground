@@ -89,12 +89,16 @@ jobs:
               echo "name is $name"
               case "$name" in
                 *idv_spm.zip)
+                  echo "using url: $url"
                   echo "Setting STD_URL..."
                   STD_URL="$url"
+                  echo "STD_URL is $STD_URL"
                   ;;
                 *idv_spm_modern.zip|*idv_spm_modernapi.zip)
+                  echo "using url: $url"  
                   echo "Setting MODERN_URL..."
                   MODERN_URL="$url"
+                  echo "MODERN_URL is $MODERN_URL"
                   ;;
               esac
             done

@@ -59,48 +59,63 @@ jobs:
             : > release_notes.txt
           fi
 
-      - name: Extract URLs for IDV_SPM.zip & IDV_SPM_Modern.zip
+      - name: Extract URLs for SPM zips
         shell: bash
         env:
-          # If you’re using toJson() in the job-level env, keep this line:
-          ARTIFACTS_JSON: ${{ toJson(github.event.client_payload.artifacts) }}
+          # Pass the raw array straight from the event payload
+          ARTIFACTS_JSON: ${{ github.event.client_payload.artifacts && toJson(github.event.client_payload.artifacts) }}
         run: |
           set -euo pipefail
 
-          # ------- sanity: valid JSON & an array -------
+          ############################################################
+          # 1. Sanity-check: must be a JSON array
+          ############################################################
           if ! printf '%s' "$ARTIFACTS_JSON" | jq -e 'type=="array"' >/dev/null 2>&1; then
             echo "❌ ARTIFACTS_JSON is not a JSON array. Raw value:" >&2
             printf '%s\n' "$ARTIFACTS_JSON" >&2
             exit 1
           fi
 
-          # ------- pull URLs (objects only) -------
-          read -r STD_URL MODERN_URL < <(
+          ############################################################
+          # 2. Pull the two URLs (look only at objects)
+          ############################################################
+          STD_URL=$(
             printf '%s' "$ARTIFACTS_JSON" |
               jq -r '
-                [ .[]
-                  | select(type=="object")
-                  | {n:(.name|ascii_downcase), u:.url}
-                ] as $a
-                | ($a[] | select(.n|endswith("idv_spm.zip"))            .u),
-                  ($a[] | select(.n|endswith("idv_spm_modern.zip") or
-                                .n|endswith("idv_spm_modernapi.zip"))  .u)
-                | @tsv'
+                .[]
+                | select(type=="object")
+                | select((.name|ascii_downcase)|endswith("idv_spm.zip"))
+                | .url
+                ' | head -n1
           )
 
-          # ------- export for later steps -------
+          MODERN_URL=$(
+            printf '%s' "$ARTIFACTS_JSON" |
+              jq -r '
+                .[]
+                | select(type=="object")
+                | select((.name|ascii_downcase)|endswith("idv_spm_modern.zip")
+                        or (.name|ascii_downcase)|endswith("idv_spm_modernapi.zip"))
+                | .url
+                ' | head -n1
+          )
+
+          ############################################################
+          # 3. Export for later steps
+          ############################################################
           {
             echo "STD_URL=${STD_URL}"
             echo "MODERN_URL=${MODERN_URL}"
           } >> "$GITHUB_ENV"
 
-          # ------- validate -------
-          : "${STD_URL:?STD_URL missing – expected artifact named IDV_SPM.zip}"
-          : "${MODERN_URL:?MODERN_URL missing – expected artifact named IDV_SPM_Modern.zip}"
+          ############################################################
+          # 4. Validate (so later steps with `set -u` can’t explode)
+          ############################################################
+          : "${STD_URL:?STD_URL missing – expected an artifact named IDV_SPM.zip}"
+          : "${MODERN_URL:?MODERN_URL missing – expected an artifact named IDV_SPM_Modern.zip}"
 
-          echo "✅ Extracted:"
-          echo "    STD_URL    = $STD_URL"
-          echo "    MODERN_URL = $MODERN_URL"
+          echo "✅ STD_URL    = ${STD_URL}"
+          echo "✅ MODERN_URL = ${MODERN_URL}"
 
       - name: Download artifacts (bash only)
         shell: bash

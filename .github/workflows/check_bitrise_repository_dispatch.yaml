@@ -66,6 +66,7 @@ jobs:
           ARTIFACTS_JSON: ${{ github.event.client_payload.artifacts && toJson(github.event.client_payload.artifacts) }}
         run: |
           set -euo pipefail
+          TMP_ENV=$(mktemp)
 
           # --------- make sure we really have an array ---------
           if ! printf '%s' "$ARTIFACTS_JSON" | jq -e 'type=="array"' >/dev/null 2>&1; then
@@ -75,36 +76,37 @@ jobs:
           fi
 
           # --------- iterate once, debug-print, and pick URLs ---------
-          readarray -t artifacts < <(printf '%s' "$ARTIFACTS_JSON" | jq -c '.[]')
-          for obj in "${artifacts[@]}"; do
-            # Pretty-print each element (stderr so logs stay clean)
-            echo "🔎 Element:" >&2
-            echo "$obj" | jq . >&2
-            echo "-----------------------------" >&2
+          printf '%s' "$ARTIFACTS_JSON" | jq -c '.[]' |
+            while IFS= read -r obj; do
+              # Pretty-print each element (stderr so logs stay clean)
+              echo "🔎 Element:" >&2
+              echo "$obj" | jq . >&2
+              echo "-----------------------------" >&2
 
-            name=$(echo "$obj" | jq -r '.name // empty' | tr '[:upper:]' '[:lower:]')
-            url=$( echo "$obj" | jq -r '.url  // empty')
-            echo "url is: $url"
-            echo "name is $name"
-            case "$name" in
-              *idv_spm.zip)
-                echo "Setting STD_URL..."
-                {
-                  echo "STD_URL=$url"
-                } >> "$GITHUB_ENV"
-                ;;
-              *idv_spm_modern.zip|*idv_spm_modernapi.zip)
-                echo "Setting MODERN_URL..."
-                {
-                  echo "MODERN_URL=$url"
-                } >> "$GITHUB_ENV"
-                ;;
-            esac
-          done
+              name=$(echo "$obj" | jq -r '.name // empty' | tr '[:upper:]' '[:lower:]')
+              url=$( echo "$obj" | jq -r '.url  // empty')
+              echo "url is: $url"
+              echo "name is $name"
+              case "$name" in
+                *idv_spm.zip)
+                  STD_URL="$url"
+                  echo "STD_URL=$url" >> "$TMP_ENV"
+                  ;;
+                *idv_spm_modern.zip|*idv_spm_modernapi.zip)
+                  MODERN_URL="$url"
+                  echo "MODERN_URL is $MODERN_URL"
+                  echo "MODERN_URL=$url" >> "$TMP_ENV"
+                  ;;
+              esac
+            done
 
-          # --------- validate ---------
-          : "${STD_URL:?STD_URL missing – expected an artifact named IDV_SPM.zip}"
-          : "${MODERN_URL:?MODERN_URL missing – expected IDV_SPM_Modern.zip}"
+          set -a
+          . "$TMP_ENV"
+          set +a
+
+          # # --------- validate ---------
+          # : "${STD_URL:?STD_URL missing – expected an artifact named IDV_SPM.zip}"
+          # : "${MODERN_URL:?MODERN_URL missing – expected IDV_SPM_Modern.zip}"
 
           echo "✅ STD_URL    = $STD_URL"
           echo "✅ MODERN_URL = $MODERN_URL"

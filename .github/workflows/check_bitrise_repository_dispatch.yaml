@@ -101,6 +101,8 @@ jobs:
               esac
             done
 
+          STD_URL=""
+          MODERN_URL=""
           set -a
           . "$TMP_ENV"
           set +a

@@ -104,6 +104,8 @@ jobs:
             done
 
           # --------- export for later steps ---------
+          echo "FINAL CHECK 1: $STD_URL"
+          echo "FINAL CHECK 2: $MODERN_URL"
           {
             echo "STD_URL=$STD_URL"
             echo "MODERN_URL=$MODERN_URL"

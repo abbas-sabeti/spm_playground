@@ -93,23 +93,21 @@ jobs:
                   echo "Setting STD_URL..."
                   STD_URL="$url"
                   echo "STD_URL is $STD_URL"
+                  {
+                    echo "STD_URL=$STD_URL"
+                  } >> "$GITHUB_ENV"
                   ;;
                 *idv_spm_modern.zip|*idv_spm_modernapi.zip)
                   echo "using url: $url"  
                   echo "Setting MODERN_URL..."
                   MODERN_URL="$url"
                   echo "MODERN_URL is $MODERN_URL"
+                  {
+                    echo "MODERN_URL=$MODERN_URL"
+                  } >> "$GITHUB_ENV"
                   ;;
               esac
             done
-
-          # --------- export for later steps ---------
-          echo "FINAL CHECK 1: $STD_URL"
-          echo "FINAL CHECK 2: $MODERN_URL"
-          {
-            echo "STD_URL=$STD_URL"
-            echo "MODERN_URL=$MODERN_URL"
-          } >> "$GITHUB_ENV"
 
           # # --------- validate ---------
           # : "${STD_URL:?STD_URL missing – expected an artifact named IDV_SPM.zip}"

@@ -98,11 +98,23 @@ jobs:
                   echo "MODERN_URL is $MODERN_URL"
                   echo "MODERN_URL=$url" >> "$TMP_ENV"
                   ;;
+                *idv_pod_modern.zip|*idv_pod_modernapi.zip)
+                  POD_MODERN_URL="$url"
+                  echo "POD_MODERN_URL is $POD_MODERN_URL"
+                  echo "POD_MODERN_URL=$url" >> "$TMP_ENV"
+                  ;;
+                *idv_pod.zip)
+                  POD_STD_URL="$url"
+                  echo "POD_STD_URL is $url"
+                  echo "POD_STD_URL=$url" >> "$TMP_ENV"
+                  ;;
               esac
             done
 
           STD_URL=""
           MODERN_URL=""
+          POD_STD_URL=""
+          POD_MODERN_URL=""
           set -a
           . "$TMP_ENV"
           set +a
@@ -110,9 +122,13 @@ jobs:
           # # --------- validate ---------
           # : "${STD_URL:?STD_URL missing – expected an artifact named IDV_SPM.zip}"
           # : "${MODERN_URL:?MODERN_URL missing – expected IDV_SPM_Modern.zip}"
+          # : "${POD_STD_URL:?POD_STD_URL missing – expected an artifact named IDV_POD.zip}"
+          # : "${POD_MODERN_URL:?POD_MODERN_URL missing – expected IDV_POD_Modern.zip}"
 
           echo "✅ STD_URL    = $STD_URL"
           echo "✅ MODERN_URL = $MODERN_URL"
+          echo "✅ POS_STD_URL    = $POD_STD_URL"
+          echo "✅ POD_MODERN_URL = $POD_MODERN_URL"
 
           cat "$TMP_ENV" >> "$GITHUB_ENV"
 
@@ -122,9 +138,13 @@ jobs:
           set -euo pipefail
           : "${STD_URL:?STD_URL missing (expect an artifact named IDV_SPM.zip)}"
           : "${MODERN_URL:?MODERN_URL missing (expect an artifact named IDV_SPM_Modern.zip)}"
+          : "${POD_STD_URL:?POD_STD_URL missing (expect an artifact named IDV_POD.zip)}"
+          : "${POD_MODERN_URL:?POD_MODERN_URL missing (expect an artifact named IDV_POD_Modern.zip)}"
           mkdir -p dist
           curl -fL "$STD_URL"    -o dist/IDV_SPM.zip
           curl -fL "$MODERN_URL" -o dist/IDV_SPM_Modern.zip
+          curl -fL "$POD_STD_URL"    -o dist/IDV_POD.zip
+          curl -fL "$POD_MODERN_URL" -o dist/IDV_POD_Modern.zip
           ls -lh dist
 
       - name: Compute checksums
@@ -149,6 +169,7 @@ jobs:
       - name: Create documentation/{VERSION} branch, update files, open PR, tag & release
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_NOTES: ${{ github.event.client_payload.release_notes }}
         shell: bash
         run: |
           set -euo pipefail
@@ -169,10 +190,11 @@ jobs:
           PY
 
           # Insert release notes at top of # Changelog
-          python3 - "$VERSION" <<'PY'
+          python3 - "$VERSION" "$RELEASE_NOTES" <<'PY'
           import sys, pathlib, re
           version = sys.argv[1]
-          notes = pathlib.Path("release_notes.txt").read_text()
+          notes = sys.argv[2]
+          # pathlib.Path("release_notes.txt").read_text()
           readme = pathlib.Path("README.md")
           t = readme.read_text()
           m = re.search(r'(^#\s*Changelog\s*\n)', t, re.M)

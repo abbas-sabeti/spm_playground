@@ -85,12 +85,13 @@ jobs:
 
               name=$(echo "$obj" | jq -r '.name // empty' | tr '[:upper:]' '[:lower:]')
               url=$( echo "$obj" | jq -r '.url  // empty')
-
+              echo "url is: $url"
+              echo "name is $name"
               case "$name" in
-                *idv_spm.zip)
+                *IDV_SPM.zip)
                   STD_URL="$url"
                   ;;
-                *idv_spm_modern.zip|*idv_spm_modernapi.zip)
+                *IDV_SPM_Modern.zip)
                   MODERN_URL="$url"
                   ;;
               esac

@@ -67,48 +67,40 @@ jobs:
         run: |
           set -euo pipefail
 
-          # 1) Normalise: if ARTIFACTS_JSON is a *string* that itself contains JSON,
-          #    run it through fromjson; otherwise leave it as-is.
-          jq_filter='
-            def ensure_array:
-              (tonumber? | .) as $try
-              | if ($try|type) != "null"
-                then .
-                else
-                  (type == "string")
-                  | if . then (fromjson) else . end
-                end;
+          # ------- sanity: valid JSON & an array -------
+          if ! printf '%s' "$ARTIFACTS_JSON" | jq -e 'type=="array"' >/dev/null 2>&1; then
+            echo "❌ ARTIFACTS_JSON is not a JSON array. Raw value:" >&2
+            printf '%s\n' "$ARTIFACTS_JSON" >&2
+            exit 1
+          fi
 
-            ensure_array
-          '
-
-          clean_json="$(printf '%s' "$ARTIFACTS_JSON" | jq -cer "$jq_filter")" \
-            || { echo "❌ ARTIFACTS_JSON is not valid JSON:" >&2; printf '%s\n' "$ARTIFACTS_JSON" >&2; exit 1; }
-
-          # 2) Pull the URLs – only from *objects*; ignore stray strings
+          # ------- pull URLs (objects only) -------
           read -r STD_URL MODERN_URL < <(
-            printf '%s' "$clean_json" | jq -r '
-              [ .[]
-                | select(type=="object")
-                | { n: (.name|ascii_downcase), u: .url }
-              ] as $arr
-              | ($arr[] | select(.n|endswith("idv_spm.zip"))           .u),
-                ($arr[] | select(.n|endswith("idv_spm_modern.zip") or
-                                .n|endswith("idv_spm_modernapi.zip")) .u)
-              | @tsv' )
+            printf '%s' "$ARTIFACTS_JSON" |
+              jq -r '
+                [ .[]
+                  | select(type=="object")
+                  | {n:(.name|ascii_downcase), u:.url}
+                ] as $a
+                | ($a[] | select(.n|endswith("idv_spm.zip"))            .u),
+                  ($a[] | select(.n|endswith("idv_spm_modern.zip") or
+                                .n|endswith("idv_spm_modernapi.zip"))  .u)
+                | @tsv'
+          )
 
-          # 3) Export into the job environment for later steps
+          # ------- export for later steps -------
           {
             echo "STD_URL=${STD_URL}"
             echo "MODERN_URL=${MODERN_URL}"
           } >> "$GITHUB_ENV"
 
-          # 4) Validate
-          : "${STD_URL:?STD_URL missing – expected an artifact named IDV_SPM.zip}"
-          : "${MODERN_URL:?MODERN_URL missing – expected an artifact named IDV_SPM_Modern.zip}"
+          # ------- validate -------
+          : "${STD_URL:?STD_URL missing – expected artifact named IDV_SPM.zip}"
+          : "${MODERN_URL:?MODERN_URL missing – expected artifact named IDV_SPM_Modern.zip}"
 
-          echo "✅ STD_URL    = $STD_URL"
-          echo "✅ MODERN_URL = $MODERN_URL"
+          echo "✅ Extracted:"
+          echo "    STD_URL    = $STD_URL"
+          echo "    MODERN_URL = $MODERN_URL"
 
       - name: Download artifacts (bash only)
         shell: bash

@@ -75,7 +75,6 @@ jobs:
           fi
 
           # --------- iterate once, debug-print, and pick URLs ---------
-          STD_URL=""; MODERN_URL=""
           printf '%s' "$ARTIFACTS_JSON" | jq -c '.[]' |
             while IFS= read -r obj; do
               # Pretty-print each element (stderr so logs stay clean)
@@ -89,29 +88,23 @@ jobs:
               echo "name is $name"
               case "$name" in
                 *idv_spm.zip)
-                  echo "using url: $url"
                   echo "Setting STD_URL..."
-                  STD_URL="$url"
-                  echo "STD_URL is $STD_URL"
                   {
-                    echo "STD_URL=$STD_URL"
+                    echo "STD_URL=$url"
                   } >> "$GITHUB_ENV"
                   ;;
                 *idv_spm_modern.zip|*idv_spm_modernapi.zip)
-                  echo "using url: $url"  
                   echo "Setting MODERN_URL..."
-                  MODERN_URL="$url"
-                  echo "MODERN_URL is $MODERN_URL"
                   {
-                    echo "MODERN_URL=$MODERN_URL"
+                    echo "MODERN_URL=$url"
                   } >> "$GITHUB_ENV"
                   ;;
               esac
             done
 
-          # # --------- validate ---------
-          # : "${STD_URL:?STD_URL missing – expected an artifact named IDV_SPM.zip}"
-          # : "${MODERN_URL:?MODERN_URL missing – expected IDV_SPM_Modern.zip}"
+          # --------- validate ---------
+          : "${STD_URL:?STD_URL missing – expected an artifact named IDV_SPM.zip}"
+          : "${MODERN_URL:?MODERN_URL missing – expected IDV_SPM_Modern.zip}"
 
           echo "✅ STD_URL    = $STD_URL"
           echo "✅ MODERN_URL = $MODERN_URL"

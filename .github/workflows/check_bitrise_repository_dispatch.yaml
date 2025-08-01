@@ -202,6 +202,7 @@ jobs:
 
           gh release create "v${VERSION}" \
             dist/IDV_SPM.zip dist/IDV_SPM_Modern.zip \
+            dist/IDV_POD.zip dist/IDV_POD_Modern.zip \
             --title "v${VERSION}" \
             --notes-file release_notes.txt
 

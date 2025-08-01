@@ -32,7 +32,7 @@ let package = Package(
         ),
         .binaryTarget(
             name: "SEONIdVerification",
-            url: "https://s3.us-east-1.amazonaws.com/idv-static.native-sdk.seondev.space/sdk-releases/1.6.2/SEONIdVerification_SPM.zip",
+            url: "https://github.com/seontechnologies/seon-idv-sdk-ios-public/releases/download/v2.0.1/IDV_SPM.zip",
             checksum: "d5bfce2933267d702ceccc00acc6eb25541fd035b0fcde76a42ac9267331dded"
         )
     ]

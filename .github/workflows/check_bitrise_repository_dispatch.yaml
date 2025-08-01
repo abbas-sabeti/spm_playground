@@ -65,6 +65,10 @@ jobs:
           ARTIFACTS_JSON: ${{ toJson(github.event.client_payload.artifacts) }}
         run: |
           set -euo pipefail
+          echo "Check 1:"
+          echo "$ARTIFACTS_JSON"
+          echo "Check 2:"
+          echo "$ARTIFACTS_JSON" | sed -e 's/“/SMQ_OPEN/g' -e 's/”/SMQ_CLOSE/g' | head
 
           # ---------- validate JSON first ----------
           if ! printf '%s' "$ARTIFACTS_JSON" | jq empty >/dev/null 2>&1; then

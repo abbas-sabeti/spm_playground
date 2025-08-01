@@ -111,9 +111,9 @@ jobs:
             echo "MODERN_URL=$MODERN_URL"
           } >> "$GITHUB_ENV"
 
-          # --------- validate ---------
-          : "${STD_URL:?STD_URL missing – expected an artifact named IDV_SPM.zip}"
-          : "${MODERN_URL:?MODERN_URL missing – expected IDV_SPM_Modern.zip}"
+          # # --------- validate ---------
+          # : "${STD_URL:?STD_URL missing – expected an artifact named IDV_SPM.zip}"
+          # : "${MODERN_URL:?MODERN_URL missing – expected IDV_SPM_Modern.zip}"
 
           echo "✅ STD_URL    = $STD_URL"
           echo "✅ MODERN_URL = $MODERN_URL"

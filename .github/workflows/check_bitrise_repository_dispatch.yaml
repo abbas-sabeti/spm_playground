@@ -90,6 +90,7 @@ jobs:
               case "$name" in
                 *idv_spm.zip)
                   STD_URL="$url"
+                  echo "STD_URL is $url"
                   echo "STD_URL=$url" >> "$TMP_ENV"
                   ;;
                 *idv_spm_modern.zip|*idv_spm_modernapi.zip)
@@ -110,6 +111,8 @@ jobs:
 
           echo "✅ STD_URL    = $STD_URL"
           echo "✅ MODERN_URL = $MODERN_URL"
+
+          cat "$TMP_ENV" >> "$GITHUB_ENV"
 
       - name: Download artifacts (bash only)
         shell: bash

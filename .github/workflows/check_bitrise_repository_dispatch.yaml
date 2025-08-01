@@ -188,13 +188,13 @@ jobs:
           git commit -m "Release: v${VERSION}"
           git push --set-upstream origin "documentation/${VERSION}"
 
-          # Open PR onto master
-          gh pr create \
-            --title "Release: v${VERSION}" \
-            --body-file release_notes.txt \
-            --base "${DEFAULT_BRANCH}" \
-            --head "documentation/${VERSION}" \
-            --draft=false
+          # # Open PR onto master
+          # gh pr create \
+          #   --title "Release: v${VERSION}" \
+          #   --body-file release_notes.txt \
+          #   --base "${DEFAULT_BRANCH}" \
+          #   --head "documentation/${VERSION}" \
+          #   --draft=false
 
           # Tag + create release (upload both artifacts)
           git tag "v${VERSION}"

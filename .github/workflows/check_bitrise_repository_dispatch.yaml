@@ -75,32 +75,32 @@ jobs:
           fi
 
           # --------- iterate once, debug-print, and pick URLs ---------
-          printf '%s' "$ARTIFACTS_JSON" | jq -c '.[]' |
-            while IFS= read -r obj; do
-              # Pretty-print each element (stderr so logs stay clean)
-              echo "🔎 Element:" >&2
-              echo "$obj" | jq . >&2
-              echo "-----------------------------" >&2
+          readarray -t artifacts < <(printf '%s' "$ARTIFACTS_JSON" | jq -c '.[]')
+          for obj in "${artifacts[@]}"; do
+            # Pretty-print each element (stderr so logs stay clean)
+            echo "🔎 Element:" >&2
+            echo "$obj" | jq . >&2
+            echo "-----------------------------" >&2
 
-              name=$(echo "$obj" | jq -r '.name // empty' | tr '[:upper:]' '[:lower:]')
-              url=$( echo "$obj" | jq -r '.url  // empty')
-              echo "url is: $url"
-              echo "name is $name"
-              case "$name" in
-                *idv_spm.zip)
-                  echo "Setting STD_URL..."
-                  {
-                    echo "STD_URL=$url"
-                  } >> "$GITHUB_ENV"
-                  ;;
-                *idv_spm_modern.zip|*idv_spm_modernapi.zip)
-                  echo "Setting MODERN_URL..."
-                  {
-                    echo "MODERN_URL=$url"
-                  } >> "$GITHUB_ENV"
-                  ;;
-              esac
-            done
+            name=$(echo "$obj" | jq -r '.name // empty' | tr '[:upper:]' '[:lower:]')
+            url=$( echo "$obj" | jq -r '.url  // empty')
+            echo "url is: $url"
+            echo "name is $name"
+            case "$name" in
+              *idv_spm.zip)
+                echo "Setting STD_URL..."
+                {
+                  echo "STD_URL=$url"
+                } >> "$GITHUB_ENV"
+                ;;
+              *idv_spm_modern.zip|*idv_spm_modernapi.zip)
+                echo "Setting MODERN_URL..."
+                {
+                  echo "MODERN_URL=$url"
+                } >> "$GITHUB_ENV"
+                ;;
+            esac
+          done
 
           # --------- validate ---------
           : "${STD_URL:?STD_URL missing – expected an artifact named IDV_SPM.zip}"

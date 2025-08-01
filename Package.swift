@@ -18,6 +18,7 @@ let package = Package(
         .package(url: "https://github.com/BlinkID/blinkid-ios", from: "6.11.1"),
         .package(url: "https://github.com/BlinkID/capture-core-sp", from: "1.3.1"),
         .package(url: "https://github.com/BlinkID/capture-ux-sp", from: "1.3.1"),
+        .package(url: "https://github.com/hmlongco/Resolver", from: "1.5.1")
     ],
     targets: [
         .target(
